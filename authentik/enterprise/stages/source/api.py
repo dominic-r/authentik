@@ -26,6 +26,18 @@ class SourceStageSerializer(EnterpriseRequiredMixin, StageSerializer):
                 )
         return source
 
+    def create(self, validated_data):
+        source = validated_data.get("source")
+        if source:
+            self.validate_source(source)
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        source = validated_data.get("source")
+        if source:
+            self.validate_source(source)
+        return super().update(instance, validated_data)
+
     class Meta:
         model = SourceStage
         fields = StageSerializer.Meta.fields + ["source", "resume_timeout"]
