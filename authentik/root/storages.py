@@ -1,8 +1,12 @@
 """authentik storage backends"""
 
 import os
+import random
+import string
 from urllib.parse import parse_qsl, urlsplit
 
+import boto3
+from botocore.exceptions import ClientError
 from django.conf import settings
 from django.core.exceptions import SuspiciousOperation
 from django.core.files.storage import FileSystemStorage
@@ -74,7 +78,35 @@ class S3Storage(BaseS3Storage):
 
     def _normalize_name(self, name):
         try:
+            return safe_join(self.location, connection.schema_name, name)
+        except ValueError:
+            raise SuspiciousOperation(f"Attempted access to '{name}' denied.") from None
 
+    def _randomize_name(self, name):
+        """Randomize the name to prevent collisions"""
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+        name, ext = os.path.splitext(name)
+        return f"{name}_{random_suffix}{ext}"
+
+    def _delete_old_asset(self, name):
+        """Delete old asset from S3"""
+        try:
+            self.bucket.Object(name).delete()
+        except ClientError as e:
+            if e.response['Error']['Code'] != 'NoSuchKey':
+                raise
+
+    def _update_existing_asset(self, name, content):
+        """Update existing asset in S3"""
+        self._delete_old_asset(name)
+        self._save(name, content)
+
+    def _save(self, name, content):
+        name = self._randomize_name(name)
+        return super()._save(name, content)
+
+    def _normalize_name(self, name):
+        try:
             return safe_join(self.location, connection.schema_name, name)
         except ValueError:
             raise SuspiciousOperation(f"Attempted access to '{name}' denied.") from None
