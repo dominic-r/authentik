@@ -173,7 +173,11 @@ export function getRelativeTime(d1: Date, d2: Date = new Date()): string {
     // "Math.abs" accounts for both "past" & "future" scenarios
     for (const [key, value] of _timeUnits) {
         if (Math.abs(elapsed) > value || key == "second") {
-            return rtf.format(Math.round(elapsed / value), key);
+            const relativeTime = elapsed / value;
+            if (!isFinite(relativeTime)) {
+                return "Invalid date";
+            }
+            return rtf.format(Math.round(relativeTime), key);
         }
     }
     return rtf.format(Math.round(elapsed / 1000), "second");
