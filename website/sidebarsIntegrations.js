@@ -130,6 +130,7 @@ module.exports = {
                         "services/netbird/index",
                         "services/opnsense/index",
                         "services/pfsense/index",
+                        "services/tailscale/index"
                     ],
                 },
                 {
