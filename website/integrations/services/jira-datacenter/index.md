@@ -68,3 +68,5 @@ com.atlassian.plugins.authentication.sso.web.usercontext.AuthenticationFailedExc
 
 
   ...... aaaaa
+
+at https://jira.sdko.net/plugins/servlet/authentication-config click 3 dots nexto authentik and click test sign in
