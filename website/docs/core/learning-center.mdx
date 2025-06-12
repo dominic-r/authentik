@@ -1,0 +1,71 @@
+---
+title: Learning Center
+---
+
+import { LearningCenter, Section } from '@site/src/components/LearningCenter';
+
+the description
+
+export const sections = [
+  {
+    title: 'Learn about DDoS',
+    description: 'In a distributed denial-of-service (DDoS) attack, a network of computers work in tandem to overflow an access point and prevent legitimate users from accessing a service.',
+    links: [
+      { title: 'What is a DDoS attack?', url: '/lorem/ddos/attack' },
+      { title: 'What is a DDoS botnet?', url: '/lorem/ddos/botnet' },
+      { title: 'How to DDoS', url: '/lorem/ddos/how' },
+      { title: 'DNS flood', url: '/lorem/ddos/dns-flood' }
+    ]
+  },
+  {
+    title: 'Learn about CDNs',
+    description: 'In a content delivery network (CDN), a set of distributed servers work together to efficiently deliver Internet content, improving loading speed and reliability.',
+    links: [
+      { title: 'What is a CDN?', url: '/lorem/cdn/what' },
+      { title: 'CDN performance', url: '/lorem/cdn/performance' },
+      { title: 'CDN SSL TLS security', url: '/lorem/cdn/security' },
+      { title: 'CDN reliability', url: '/lorem/cdn/reliability' }
+    ]
+  },
+  {
+    title: 'Learn about DNS',
+    description: 'The domain name system (DNS) is often referred to as a phone book for the Internet. It\'s the worldwide network that connects users to web content via domain names.',
+    links: [
+      { title: 'What is DNS?', url: '/lorem/dns/what' },
+      { title: 'DNS security', url: '/lorem/dns/security' },
+      { title: 'DNS server types', url: '/lorem/dns/servers' },
+      { title: 'DNS records', url: '/lorem/dns/records' }
+    ]
+  },
+  {
+    title: 'Learn about web application security',
+    description: 'The nature of the Internet makes web applications vulnerable to a number of attacks. Web application security involves using a holistic approach to mitigate attacks.',
+    links: [
+      { title: 'What is web application security?', url: '/lorem/websec/what' },
+      { title: 'What is a data breach?', url: '/lorem/websec/breach' },
+      { title: 'Common web vulnerabilities', url: '/lorem/websec/vulns' }
+    ]
+  },
+  {
+    title: 'Learn about performance',
+    description: 'Web applications that load quickly see higher conversion rates and better SEO performance. Learn about the factors that impact application performance.',
+    links: [
+      { title: 'Why does site speed matter?', url: '/lorem/perf/why' },
+      { title: 'How does website speed boost SEO?', url: '/lorem/perf/seo' },
+      { title: 'Performance optimization techniques', url: '/lorem/perf/techniques' }
+    ]
+  },
+  {
+    title: 'Learn about serverless',
+    description: 'Serverless computing allows users to write and deploy code without the hassle of worrying about the underlying infrastructure. Learn why more developers are opting for a serverless architecture.',
+    links: [
+      { title: 'What is serverless computing?', url: '/lorem/serverless/what' },
+      { title: 'Why use serverless?', url: '/lorem/serverless/why' },
+      { title: 'Serverless vs traditional architecture', url: '/lorem/serverless/vs' }
+    ]
+  }
+];
+
+<div className="learning-center-container">
+  <LearningCenter sections={sections} />
+</div> 

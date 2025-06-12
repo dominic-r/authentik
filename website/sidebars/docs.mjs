@@ -79,7 +79,7 @@ const items = [
         type: "category",
         label: "Core Concepts",
         collapsed: true,
-        items: ["core/terminology", "core/architecture"],
+        items: ["core/terminology", "core/architecture", "core/learning-center"],
     },
     {
         type: "category",
