@@ -90,7 +90,6 @@
   font-size: 0.875rem;
 }
 
-/* Custom container styles for docs page */
 :global(.learning-center-container) {
   margin: -1rem -1rem 2rem -1rem;
 }
@@ -102,7 +101,6 @@
   }
 }
 
-/* Responsive adjustments */
 @media (max-width: 996px) {
   .sectionGrid {
     grid-template-columns: repeat(2, 1fr);
