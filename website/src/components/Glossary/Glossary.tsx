@@ -22,7 +22,7 @@ export const Glossary: React.FC<GlossaryProps> = ({
   const [expandedTerms, setExpandedTerms] = useState<Record<string, boolean>>({});
   const [filter, setFilter] = useState('');
   const [filteredTerms, setFilteredTerms] = useState<GlossaryTerm[]>(terms);
-  const [selectedSection, setSelectedSection] = useState<string | null>(null);
+  const [selectedSections, setSelectedSections] = useState<string[]>([]);
   const [isSimplifiedView, setIsSimplifiedView] = useState(false);
 
   const toggleTerm = (id: string) => {
@@ -86,24 +86,30 @@ export const Glossary: React.FC<GlossaryProps> = ({
     }
     
     // Apply section filter (only in categorized view)
-    if (selectedSection && !isSimplifiedView) {
+    if (selectedSections.length > 0 && !isSimplifiedView) {
       result = result.filter(term => 
-        (term.section || 'General') === selectedSection
+        selectedSections.includes(term.section || 'General')
       );
     }
     
     setFilteredTerms(result);
-  }, [filter, selectedSection, terms, isSimplifiedView]);
+  }, [filter, selectedSections, terms, isSimplifiedView]);
 
-  const handleSectionClick = (section: string) => {
-    setSelectedSection(prev => prev === section ? null : section);
+  const toggleSection = (section: string) => {
+    setSelectedSections(prev => {
+      if (prev.includes(section)) {
+        return prev.filter(s => s !== section);
+      } else {
+        return [...prev, section];
+      }
+    });
   };
 
   const toggleViewMode = () => {
     setIsSimplifiedView(prev => !prev);
     // Reset section filter when switching to simplified view
     if (!isSimplifiedView) {
-      setSelectedSection(null);
+      setSelectedSections([]);
     }
   };
 
@@ -146,13 +152,22 @@ export const Glossary: React.FC<GlossaryProps> = ({
               key={section}
               className={clsx(
                 styles.sectionButton,
-                selectedSection === section && styles.active
+                selectedSections.includes(section) && styles.active
               )}
-              onClick={() => handleSectionClick(section)}
+              onClick={() => toggleSection(section)}
             >
               {section}
             </button>
           ))}
+          {selectedSections.length > 0 && (
+            <button
+              className={styles.clearButton}
+              onClick={() => setSelectedSections([])}
+              aria-label="Clear category filters"
+            >
+              Clear filters
+            </button>
+          )}
         </div>
       )}
       

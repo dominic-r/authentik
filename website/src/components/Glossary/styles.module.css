@@ -212,6 +212,7 @@
   flex-wrap: wrap;
   gap: 0.75rem;
   margin-bottom: 2rem;
+  align-items: center;
 }
 
 .sectionButton {
@@ -235,6 +236,24 @@
 .sectionButton.active {
   background-color: var(--ifm-color-primary);
   color: white;
+}
+
+.clearButton {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  background-color: var(--ifm-color-emphasis-300);
+  color: var(--ifm-color-emphasis-800);
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+  margin-left: 0.5rem;
+}
+
+.clearButton:hover {
+  background-color: var(--ifm-color-emphasis-400);
+  color: var(--ifm-color-emphasis-900);
 }
 
 .noResults {
