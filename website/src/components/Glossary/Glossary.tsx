@@ -23,6 +23,7 @@ export const Glossary: React.FC<GlossaryProps> = ({
   const [filter, setFilter] = useState('');
   const [filteredTerms, setFilteredTerms] = useState<GlossaryTerm[]>(terms);
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
+  const [isSimplifiedView, setIsSimplifiedView] = useState(false);
 
   const toggleTerm = (id: string) => {
     setExpandedTerms(prev => ({
@@ -50,6 +51,22 @@ export const Glossary: React.FC<GlossaryProps> = ({
     return Object.entries(sections).sort(([a], [b]) => a.localeCompare(b));
   }, [filteredTerms]);
   
+  // Group terms alphabetically for A-Z view
+  const termsByAlphabet = React.useMemo(() => {
+    const alphabetGroups: Record<string, GlossaryTerm[]> = {};
+    
+    filteredTerms.forEach(term => {
+      const firstLetter = term.term.charAt(0).toUpperCase();
+      if (!alphabetGroups[firstLetter]) {
+        alphabetGroups[firstLetter] = [];
+      }
+      alphabetGroups[firstLetter].push(term);
+    });
+    
+    // Sort alphabet groups
+    return Object.entries(alphabetGroups).sort(([a], [b]) => a.localeCompare(b));
+  }, [filteredTerms]);
+  
   // Get available sections
   const availableSections = React.useMemo(() => 
     Array.from(new Set(terms.map(term => term.section || 'General'))).sort(),
@@ -58,8 +75,8 @@ export const Glossary: React.FC<GlossaryProps> = ({
   useEffect(() => {
     let result = terms;
     
-    // Apply text filter
-    if (filter) {
+    // Apply text filter (only in A-Z view)
+    if (filter && isSimplifiedView) {
       const lowerFilter = filter.toLowerCase();
       result = result.filter(term => 
         term.term.toLowerCase().includes(lowerFilter) || 
@@ -68,78 +85,142 @@ export const Glossary: React.FC<GlossaryProps> = ({
       );
     }
     
-    // Apply section filter
-    if (selectedSection) {
+    // Apply section filter (only in categorized view)
+    if (selectedSection && !isSimplifiedView) {
       result = result.filter(term => 
         (term.section || 'General') === selectedSection
       );
     }
     
     setFilteredTerms(result);
-  }, [filter, selectedSection, terms]);
+  }, [filter, selectedSection, terms, isSimplifiedView]);
 
   const handleSectionClick = (section: string) => {
     setSelectedSection(prev => prev === section ? null : section);
   };
 
+  const toggleViewMode = () => {
+    setIsSimplifiedView(prev => !prev);
+    // Reset section filter when switching to simplified view
+    if (!isSimplifiedView) {
+      setSelectedSection(null);
+    }
+  };
+
   return (
     <div className={clsx(styles.glossary, className)}>
-      <div className={styles.filter}>
-        <input
-          type="text"
-          placeholder="Filter terms..."
-          className={styles.filterInput}
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        />
+      <div className={styles.viewToggleContainer}>
+        <p className={styles.viewTogglePrompt}>Select your preferred view format:</p>
+        <button
+          className={clsx(styles.viewToggle, !isSimplifiedView && styles.viewToggleActive)}
+          onClick={() => setIsSimplifiedView(false)}
+          aria-pressed={!isSimplifiedView}
+        >
+          Categorized View
+        </button>
+        <button
+          className={clsx(styles.viewToggle, isSimplifiedView && styles.viewToggleActive)}
+          onClick={() => setIsSimplifiedView(true)}
+          aria-pressed={isSimplifiedView}
+        >
+          A-Z View
+        </button>
       </div>
       
-      <div className={styles.sectionNav}>
-        {availableSections.map(section => (
-          <button
-            key={section}
-            className={clsx(
-              styles.sectionButton,
-              selectedSection === section && styles.active
-            )}
-            onClick={() => handleSectionClick(section)}
-          >
-            {section}
-          </button>
-        ))}
-      </div>
+      {isSimplifiedView && (
+        <div className={styles.filter}>
+          <input
+            type="text"
+            placeholder="Filter terms..."
+            className={styles.filterInput}
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+        </div>
+      )}
+      
+      {!isSimplifiedView && (
+        <div className={styles.sectionNav}>
+          {availableSections.map(section => (
+            <button
+              key={section}
+              className={clsx(
+                styles.sectionButton,
+                selectedSection === section && styles.active
+              )}
+              onClick={() => handleSectionClick(section)}
+            >
+              {section}
+            </button>
+          ))}
+        </div>
+      )}
       
       <div className={styles.termList}>
         {filteredTerms.length > 0 ? (
-          termsBySection.map(([section, sectionTerms]) => (
-            <div key={section} className={styles.section}>
-              <h2 className={styles.sectionTitle}>{section}</h2>
-              <div className={styles.sectionTerms}>
-                {sectionTerms.map((term) => (
-                  <div key={term.id} className={styles.termItem} id={term.id}>
-                    <div className={styles.termHeader}>
-                      <h3 className={styles.termTitle}>{term.term}</h3>
+          isSimplifiedView ? (
+            // A-Z Alphabetical simplified view (markdown-style list)
+            termsByAlphabet.map(([letter, letterTerms]) => (
+              <div key={letter} className={styles.simplifiedSection}>
+                <h2 className={styles.sectionTitle}>{letter}</h2>
+                <div className={styles.simplifiedTerms}>
+                  {letterTerms.map((term) => (
+                    <div key={term.id} className={styles.simplifiedTermItem} id={term.id}>
+                      <h3 className={styles.simplifiedTermTitle}>{term.term}</h3>
+                      <p className={styles.simplifiedDefinition}>{term.shortDefinition}</p>
                       {term.fullDefinition && (
-                        <button 
-                          className={styles.expandButton}
-                          onClick={() => toggleTerm(term.id)}
-                          aria-label={expandedTerms[term.id] ? "Collapse definition" : "Expand definition"}
-                        >
-                          {expandedTerms[term.id] ? 'Less' : 'More'}
-                        </button>
+                        <div>
+                          <button 
+                            className={styles.simplifiedExpandButton}
+                            onClick={() => toggleTerm(term.id)}
+                            aria-label={expandedTerms[term.id] ? "Collapse definition" : "Expand definition"}
+                          >
+                            {expandedTerms[term.id] ? '▼ Less details' : '▶ More details'}
+                          </button>
+                          {expandedTerms[term.id] && (
+                            <ul className={styles.simplifiedFullDefinition}>
+                              <li>{term.fullDefinition}</li>
+                            </ul>
+                          )}
+                        </div>
                       )}
                     </div>
-                    <p className={styles.shortDefinition}>{term.shortDefinition}</p>
-                    {term.fullDefinition && expandedTerms[term.id] && (
-                      <div className={styles.fullDefinition}>
-                        <p>{term.fullDefinition}</p>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))
+            ))
+          ) : (
+            // Categorized view (original)
+            termsBySection.map(([section, sectionTerms]) => (
+              <div key={section} className={styles.section}>
+                <h2 className={styles.sectionTitle}>{section}</h2>
+                <div className={styles.sectionTerms}>
+                  {sectionTerms.map((term) => (
+                    <div key={term.id} className={styles.termItem} id={term.id}>
+                      <div className={styles.termHeader}>
+                        <h3 className={styles.termTitle}>{term.term}</h3>
+                        {term.fullDefinition && (
+                          <button 
+                            className={styles.expandButton}
+                            onClick={() => toggleTerm(term.id)}
+                            aria-label={expandedTerms[term.id] ? "Collapse definition" : "Expand definition"}
+                          >
+                            {expandedTerms[term.id] ? 'Less' : 'More'}
+                          </button>
+                        )}
+                      </div>
+                      <p className={styles.shortDefinition}>{term.shortDefinition}</p>
+                      {term.fullDefinition && expandedTerms[term.id] && (
+                        <div className={styles.fullDefinition}>
+                          <p>{term.fullDefinition}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )
         ) : (
           <div className={styles.noResults}>
             <p>No terms match your filter criteria.</p>

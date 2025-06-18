@@ -15,20 +15,6 @@ export const terms = [
     fullDefinition: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.'
   },
   {
-    id: 'authentication',
-    term: 'Authentication',
-    section: 'Core Concepts',
-    shortDefinition: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
-    fullDefinition: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.'
-  },
-  {
-    id: 'authorization',
-    term: 'Authorization',
-    section: 'Core Concepts',
-    shortDefinition: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
-    fullDefinition: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.'
-  },
-  {
     id: 'api',
     term: 'API',
     section: 'Integration & Development',
@@ -39,6 +25,20 @@ export const terms = [
     id: 'application',
     term: 'Application',
     section: 'Features',
+    shortDefinition: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
+    fullDefinition: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.'
+  },
+  {
+    id: 'authentication',
+    term: 'Authentication',
+    section: 'Core Concepts',
+    shortDefinition: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
+    fullDefinition: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.'
+  },
+  {
+    id: 'authorization',
+    term: 'Authorization',
+    section: 'Core Concepts',
     shortDefinition: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
     fullDefinition: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.'
   },
@@ -140,6 +140,6 @@ export const terms = [
     shortDefinition: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
     fullDefinition: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.'
   }
-];
+].sort((a, b) => a.term.localeCompare(b.term));
 
 <Glossary terms={terms} /> 
