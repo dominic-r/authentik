@@ -1,7 +1,5 @@
 /**
  * @file Sidebar configuration for the authentik integrations.
- *
- * @import { SidebarItemConfig } from "@docusaurus/plugin-content-docs-types"
  */
 
 /**
@@ -14,6 +12,7 @@ const items = [
         items: [
             "services/espocrm/index",
             "services/hedgedoc/index",
+            "services/jira-datacenter/index",
             "services/kimai/index",
             "services/mailcow/index",
             "services/mastodon/index",
