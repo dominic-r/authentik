@@ -15,19 +15,26 @@ export interface Section {
 }
 
 export interface LearningCenterProps {
+    title?: string;
     description?: string;
     sections: Section[];
     className?: string;
 }
 
 export const LearningCenter: React.FC<LearningCenterProps> = ({
+    title,
     description,
     sections,
     className,
 }) => {
     return (
         <div className={clsx(styles.learningCenter, className)}>
-            {description && <p className={styles.description}>{description}</p>}
+            {(title || description) && (
+                <div className={styles.header}>
+                    {title && <h2 className={styles.title}>{title}</h2>}
+                    {description && <p className={styles.description}>{description}</p>}
+                </div>
+            )}
             
             <div className={styles.sectionGrid}>
                 {sections.map((section, idx) => (
@@ -37,14 +44,14 @@ export const LearningCenter: React.FC<LearningCenterProps> = ({
                         {section.links && section.links.length > 0 && (
                             <div className={styles.sectionLinks}>
                                 {section.links.map((link, linkIdx) => (
-                                    <a 
+                                    <Link 
                                         key={linkIdx}
-                                        href={link.url}
+                                        to={link.url}
                                         className={styles.sectionLink}
                                     >
                                         <i className="fa fa-arrow-right"></i>
-                                        {link.title}
-                                    </a>
+                                        <span>{link.title}</span>
+                                    </Link>
                                 ))}
                             </div>
                         )}
