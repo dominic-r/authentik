@@ -50,6 +50,13 @@
   transform: translateY(-4px);
 }
 
+.sectionContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 180px;
+}
+
 .sectionTitle {
   margin: 0 0 0.75rem 0;
   font-size: 1.4rem;
@@ -59,16 +66,17 @@
 }
 
 .sectionDescription {
-  margin: 0 0 1.5rem 0;
+  margin: 0;
   font-size: 0.95rem;
   color: var(--ifm-color-emphasis-700);
   line-height: 1.6;
+  flex-grow: 1;
 }
 
 .sectionLinks {
-  margin-top: auto;
   padding-top: 1.25rem;
   border-top: 1px solid var(--ifm-color-emphasis-200);
+  width: 100%;
 }
 
 .sectionLink {
@@ -126,6 +134,7 @@
   
   .sectionGrid {
     grid-template-columns: repeat(3, 1fr);
+    grid-auto-rows: 1fr;
   }
 }
 

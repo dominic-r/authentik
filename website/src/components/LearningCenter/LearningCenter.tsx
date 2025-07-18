@@ -39,8 +39,10 @@ export const LearningCenter: React.FC<LearningCenterProps> = ({
             <div className={styles.sectionGrid}>
                 {sections.map((section, idx) => (
                     <div key={idx} className={styles.sectionCard}>
-                        <h3 className={styles.sectionTitle}>{section.title}</h3>
-                        <p className={styles.sectionDescription}>{section.description}</p>
+                        <div className={styles.sectionContent}>
+                            <h3 className={styles.sectionTitle}>{section.title}</h3>
+                            <p className={styles.sectionDescription}>{section.description}</p>
+                        </div>
                         {section.links && section.links.length > 0 && (
                             <div className={styles.sectionLinks}>
                                 {section.links.map((link, linkIdx) => (
