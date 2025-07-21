@@ -112,9 +112,22 @@ class Tenant(TenantMixin, SerializerModel):
         validators=[MinValueValidator(1)],
     )
 
+    def clean(self):
+        """Validate tenant configuration"""
+        super().clean()
+        # Import here to avoid circular imports
+        from authentik.lib.avatars import validate_avatar_modes
+        
+        if self.avatars:
+            try:
+                validate_avatar_modes(self.avatars)
+            except ValidationError as exc:
+                raise ValidationError({"avatars": exc.message}) from exc
+
     def save(self, *args, **kwargs):
         if self.schema_name == "template":
             raise IntegrityError("Cannot create schema named template")
+        self.full_clean()
         super().save(*args, **kwargs)
 
     @property

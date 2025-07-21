@@ -4,6 +4,7 @@ from datetime import timedelta
 from hmac import compare_digest
 
 from django.apps import apps
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import HttpResponseNotFound
 from django.http.request import urljoin
 from django.utils.timezone import now
@@ -15,7 +16,7 @@ from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.serializers import DateTimeField
+from rest_framework.serializers import DateTimeField, ValidationError
 from rest_framework.views import View
 from rest_framework.viewsets import ModelViewSet
 
@@ -43,6 +44,16 @@ class TenantApiKeyPermission(BasePermission):
 class TenantSerializer(ModelSerializer):
     """Tenant Serializer"""
 
+    def validate_avatars(self, value):
+        """Validate avatar configuration"""
+        from authentik.lib.avatars import validate_avatar_modes
+        
+        try:
+            validate_avatar_modes(value)
+        except DjangoValidationError as exc:
+            raise ValidationError(str(exc)) from exc
+        return value
+
     class Meta:
         model = Tenant
         fields = [
@@ -50,6 +61,7 @@ class TenantSerializer(ModelSerializer):
             "schema_name",
             "name",
             "ready",
+            "avatars",
         ]
 
 

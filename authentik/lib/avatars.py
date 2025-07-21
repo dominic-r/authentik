@@ -5,8 +5,10 @@ from functools import cache as funccache
 from hashlib import md5, sha256
 from typing import TYPE_CHECKING
 from urllib.parse import urlencode
+import logging
 
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponseNotFound
 from django.templatetags.static import static
 from lxml import etree  # nosec
@@ -37,6 +39,8 @@ SVG_FONTS = [
     "arial",
     "sans-serif",
 ]
+
+LOGGER = logging.getLogger(__name__)
 
 
 def avatar_mode_none(user: "User", mode: str) -> str | None:
@@ -179,13 +183,74 @@ def avatar_mode_generated(user: "User", mode: str) -> str | None:
 
 
 def avatar_mode_url(user: "User", mode: str) -> str | None:
-    """Format url"""
+    """Format url with safe error handling"""
     mail_hash = md5(user.email.lower().encode("utf-8"), usedforsecurity=False).hexdigest()  # nosec
-    return mode % {
-        "username": user.username,
-        "mail_hash": mail_hash,
-        "upn": user.attributes.get("upn", ""),
+    try:
+        return mode % {
+            "username": user.username,
+            "mail_hash": mail_hash,
+            "upn": user.attributes.get("upn", ""),
+        }
+    except (ValueError, TypeError, KeyError) as exc:
+        LOGGER.warning(
+            "Invalid avatar URL format configuration",
+            mode=mode,
+            error=str(exc),
+            user=user.username,
+        )
+        return None
+
+
+def validate_avatar_modes(avatars: str) -> None:
+    """Validate avatar configuration string
+    
+    Args:
+        avatars: Comma-separated list of avatar modes
+        
+    Raises:
+        ValidationError: If any avatar mode is invalid
+    """
+    if not avatars:
+        raise ValidationError("Avatar configuration cannot be empty")
+    
+    mode_map = {
+        "none": True,
+        "initials": True,
+        "gravatar": True,
     }
+    
+    test_user_data = {
+        "username": "testuser",
+        "mail_hash": "d41d8cd98f00b204e9800998ecf8427e",
+        "upn": "testuser@example.com",
+    }
+    
+    for mode in avatars.split(","):
+        mode = mode.strip()
+        if not mode:
+            continue
+            
+        if mode in mode_map:
+            # Built-in modes are valid
+            continue
+        elif mode.startswith("attributes."):
+            # Attribute-based avatars are valid
+            continue
+        elif "://" in mode:
+            # URL-based avatars need format string validation
+            try:
+                # Test the format string with sample data
+                mode % test_user_data
+            except (ValueError, TypeError, KeyError) as exc:
+                raise ValidationError(
+                    f"Invalid URL format in avatar mode '{mode}': {exc}. "
+                    f"Use %(username)s, %(mail_hash)s, or %(upn)s as placeholders."
+                ) from exc
+        else:
+            raise ValidationError(
+                f"Invalid avatar mode '{mode}'. "
+                f"Valid modes: none, initials, gravatar, attributes.*, or URLs with ://"
+            )
 
 
 def get_avatar(user: "User", request: HttpRequest | None = None) -> str:
