@@ -13,7 +13,7 @@ from rest_framework.viewsets import ModelViewSet
 from authentik.blueprints.models import BlueprintInstance
 from authentik.blueprints.v1.importer import Importer
 from authentik.blueprints.v1.oci import OCI_PREFIX
-from authentik.blueprints.v1.tasks import apply_blueprint, blueprints_find_dict, check_default_blueprints
+from authentik.blueprints.v1.tasks import apply_blueprint, blueprints_find_dict
 from authentik.core.api.used_by import UsedByMixin
 from authentik.core.api.utils import JSONDictField, ModelSerializer, PassiveSerializer
 from authentik.rbac.decorators import permission_required
@@ -117,28 +117,6 @@ class BlueprintInstanceViewSet(UsedByMixin, ModelViewSet):
         """Get blueprints"""
         files: list[dict] = blueprints_find_dict.delay().get()
         return Response(files)
-
-    @permission_required("authentik_blueprints.view_blueprintinstance")
-    @extend_schema(
-        request=None,
-        responses={
-            200: inline_serializer(
-                "BlueprintCheckResult",
-                fields={
-                    "status": CharField(),
-                    "message": CharField(),
-                }
-            )
-        },
-    )
-    @action(detail=False, pagination_class=None, filter_backends=[], methods=["POST"])
-    def check_default_blueprints(self, request: Request) -> Response:
-        """Check for missing default blueprints and apply them"""
-        result = check_default_blueprints.delay().get()
-        return Response({
-            "status": "success" if result.get("status") == "SUCCESSFUL" else "warning",
-            "message": result.get("message", "Default blueprint check completed")
-        })
 
     @permission_required("authentik_blueprints.view_blueprintinstance")
     @extend_schema(
