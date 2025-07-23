@@ -150,6 +150,128 @@ def blueprints_find() -> list[BlueprintFile]:
     throws=(DatabaseError, ProgrammingError, InternalError), base=SystemTask, bind=True
 )
 @prefill_task
+def check_default_blueprints(self: SystemTask):
+    """Check for missing default blueprints and ensure they are applied"""
+    LOGGER.info("Starting default blueprint validation check")
+    
+    count_checked = 0
+    count_missing = 0
+    count_applied = 0
+    count_errors = 0
+    
+    # Get all blueprint files from the filesystem
+    all_blueprints = blueprints_find()
+    
+    # Get all blueprints currently in the database
+    db_blueprints = set(BlueprintInstance.objects.values_list('path', flat=True))
+    
+    LOGGER.info(
+        "Blueprint check status", 
+        filesystem_blueprints=len(all_blueprints),
+        database_blueprints=len(db_blueprints)
+    )
+    
+    for blueprint in all_blueprints:
+        count_checked += 1
+        
+        # Skip if blueprint is marked as not to be instantiated
+        if (
+            blueprint.meta
+            and blueprint.meta.labels.get(LABEL_AUTHENTIK_INSTANTIATE, "").lower() == "false"
+        ):
+            LOGGER.debug("Skipping blueprint marked as not instantiable", path=blueprint.path)
+            continue
+        
+        # Check if blueprint exists in database
+        if blueprint.path not in db_blueprints:
+            count_missing += 1
+            LOGGER.warning(
+                "Default blueprint missing from database, attempting to apply",
+                path=blueprint.path,
+                blueprint_name=blueprint.meta.name if blueprint.meta else blueprint.path
+            )
+            
+            try:
+                # Create blueprint instance
+                check_blueprint_v1_file(blueprint)
+                count_applied += 1
+                LOGGER.info(
+                    "Successfully queued missing default blueprint for application",
+                    path=blueprint.path,
+                    blueprint_name=blueprint.meta.name if blueprint.meta else blueprint.path
+                )
+            except Exception as exc:
+                count_errors += 1
+                LOGGER.error(
+                    "Failed to apply missing default blueprint",
+                    path=blueprint.path,
+                    blueprint_name=blueprint.meta.name if blueprint.meta else blueprint.path,
+                    error=str(exc),
+                    exc_info=True
+                )
+        else:
+            # Blueprint exists, check if it needs to be reapplied
+            instance = BlueprintInstance.objects.filter(path=blueprint.path).first()
+            if instance and instance.last_applied_hash != blueprint.hash:
+                LOGGER.info(
+                    "Default blueprint needs update due to file changes",
+                    path=blueprint.path,
+                    blueprint_name=blueprint.meta.name if blueprint.meta else blueprint.path,
+                    instance_id=str(instance.pk)
+                )
+                try:
+                    apply_blueprint.delay(str(instance.pk))
+                    count_applied += 1
+                except Exception as exc:
+                    count_errors += 1
+                    LOGGER.error(
+                        "Failed to queue blueprint update",
+                        path=blueprint.path,
+                        instance_id=str(instance.pk),
+                        error=str(exc),
+                        exc_info=True
+                    )
+    
+    # Log summary
+    LOGGER.info(
+        "Default blueprint check completed",
+        total_checked=count_checked,
+        missing_blueprints=count_missing,
+        blueprints_applied=count_applied,
+        errors=count_errors
+    )
+    
+    if count_errors > 0:
+        self.set_status(
+            TaskStatus.WARNING,
+            _(
+                "Blueprint check completed with {errors} errors. "
+                "Checked {total} blueprints, found {missing} missing, applied {applied}."
+            ).format(
+                errors=count_errors,
+                total=count_checked,
+                missing=count_missing,
+                applied=count_applied
+            )
+        )
+    else:
+        self.set_status(
+            TaskStatus.SUCCESSFUL,
+            _(
+                "Blueprint check completed successfully. "
+                "Checked {total} blueprints, found {missing} missing, applied {applied}."
+            ).format(
+                total=count_checked,
+                missing=count_missing,
+                applied=count_applied
+            )
+        )
+
+
+@CELERY_APP.task(
+    throws=(DatabaseError, ProgrammingError, InternalError), base=SystemTask, bind=True
+)
+@prefill_task
 def blueprints_discovery(self: SystemTask, path: str | None = None):
     """Find blueprints and check if they need to be created in the database"""
     count = 0
@@ -158,6 +280,11 @@ def blueprints_discovery(self: SystemTask, path: str | None = None):
             continue
         check_blueprint_v1_file(blueprint)
         count += 1
+    
+    # After discovery, run the default blueprint check
+    LOGGER.info("Running default blueprint validation after discovery")
+    check_default_blueprints.delay()
+    
     self.set_status(
         TaskStatus.SUCCESSFUL, _("Successfully imported {count} files.".format(count=count))
     )
@@ -183,10 +310,18 @@ def check_blueprint_v1_file(blueprint: BlueprintFile):
         )
         instance.save()
         LOGGER.info(
-            "Creating new blueprint instance from file", instance=instance, path=instance.path
+            "Creating new blueprint instance from file", 
+            instance=instance, 
+            path=instance.path,
+            blueprint_name=blueprint.meta.name if blueprint.meta else "unnamed"
         )
     if instance.last_applied_hash != blueprint.hash:
-        LOGGER.info("Applying blueprint due to changed file", instance=instance, path=instance.path)
+        LOGGER.info(
+            "Applying blueprint due to changed file", 
+            instance=instance, 
+            path=instance.path,
+            blueprint_name=blueprint.meta.name if blueprint.meta else "unnamed"
+        )
         apply_blueprint.delay(str(instance.pk))
 
 
@@ -201,8 +336,17 @@ def apply_blueprint(self: SystemTask, instance_pk: str):
     try:
         instance: BlueprintInstance = BlueprintInstance.objects.filter(pk=instance_pk).first()
         if not instance or not instance.enabled:
+            LOGGER.warning("Blueprint instance not found or disabled", instance_pk=instance_pk)
             return
         self.set_uid(slugify(instance.name))
+        
+        LOGGER.info(
+            "Starting blueprint application",
+            instance=instance,
+            path=instance.path,
+            blueprint_name=instance.name
+        )
+        
         blueprint_content = instance.retrieve()
         file_hash = sha512(blueprint_content.encode()).hexdigest()
         importer = Importer.from_string(blueprint_content, instance.context)
@@ -212,6 +356,13 @@ def apply_blueprint(self: SystemTask, instance_pk: str):
         if not valid:
             instance.status = BlueprintInstanceStatus.ERROR
             instance.save()
+            LOGGER.error(
+                "Blueprint validation failed",
+                instance=instance,
+                path=instance.path,
+                blueprint_name=instance.name,
+                validation_logs=logs
+            )
             self.set_status(TaskStatus.ERROR, *logs)
             return
         with capture_logs() as logs:
@@ -219,11 +370,27 @@ def apply_blueprint(self: SystemTask, instance_pk: str):
             if not applied:
                 instance.status = BlueprintInstanceStatus.ERROR
                 instance.save()
+                LOGGER.error(
+                    "Blueprint application failed",
+                    instance=instance,
+                    path=instance.path,
+                    blueprint_name=instance.name,
+                    application_logs=logs
+                )
                 self.set_status(TaskStatus.ERROR, *logs)
                 return
         instance.status = BlueprintInstanceStatus.SUCCESSFUL
         instance.last_applied_hash = file_hash
         instance.last_applied = now()
+        
+        LOGGER.info(
+            "Blueprint application successful",
+            instance=instance,
+            path=instance.path,
+            blueprint_name=instance.name,
+            file_hash=file_hash[:8]  # Log first 8 chars of hash for reference
+        )
+        
         self.set_status(TaskStatus.SUCCESSFUL)
     except (
         OSError,
@@ -235,6 +402,14 @@ def apply_blueprint(self: SystemTask, instance_pk: str):
     ) as exc:
         if instance:
             instance.status = BlueprintInstanceStatus.ERROR
+            LOGGER.error(
+                "Blueprint application error",
+                instance=instance,
+                path=instance.path if instance else "unknown",
+                blueprint_name=instance.name if instance else "unknown",
+                error=str(exc),
+                exc_info=True
+            )
         self.set_error(exc)
     finally:
         if instance:
@@ -245,8 +420,19 @@ def apply_blueprint(self: SystemTask, instance_pk: str):
 def clear_failed_blueprints():
     """Remove blueprints which couldn't be fetched"""
     # Exclude OCI blueprints as those might be temporarily unavailable
+    count_removed = 0
     for blueprint in BlueprintInstance.objects.exclude(path__startswith=OCI_PREFIX):
         try:
             blueprint.retrieve()
         except BlueprintRetrievalFailed:
+            LOGGER.info(
+                "Removing failed blueprint that could not be retrieved",
+                instance=blueprint,
+                path=blueprint.path,
+                blueprint_name=blueprint.name
+            )
             blueprint.delete()
+            count_removed += 1
+    
+    if count_removed > 0:
+        LOGGER.info("Removed failed blueprints", count=count_removed)

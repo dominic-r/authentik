@@ -120,10 +120,16 @@ class AuthentikBlueprintsConfig(ManagedAppConfig):
     @ManagedAppConfig.reconcile_tenant
     def blueprints_discovery(self):
         """Run blueprint discovery"""
-        from authentik.blueprints.v1.tasks import blueprints_discovery, clear_failed_blueprints
+        from authentik.blueprints.v1.tasks import (
+            blueprints_discovery, 
+            clear_failed_blueprints, 
+            check_default_blueprints
+        )
 
         blueprints_discovery.delay()
         clear_failed_blueprints.delay()
+        # Run default blueprint check to ensure all required blueprints are applied
+        check_default_blueprints.delay()
 
     def import_models(self):
         super().import_models()
