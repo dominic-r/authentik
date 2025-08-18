@@ -52,7 +52,7 @@ export class AboutModal extends WithLicenseSummary(WithBrandConfig(ModalButton))
             [msg("Kernel"), status.runtime.uname],
             [
                 msg("OpenSSL"),
-                `${status.runtime.opensslVersion} ${status.runtime.opensslFipsEnabled ? "FIPS" : ""}`,
+                `${status.runtime.opensslVersion} ${status.runtime.opensslFipsStatus === "enabled" ? "FIPS" : ""}`,
             ],
         ];
     }

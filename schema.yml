@@ -60675,16 +60675,15 @@ components:
               type: string
             openssl_version:
               type: string
-            openssl_fips_enabled:
-              type: boolean
-              nullable: true
+            openssl_fips_status:
+              type: string
             authentik_version:
               type: string
           required:
           - architecture
           - authentik_version
           - environment
-          - openssl_fips_enabled
+          - openssl_fips_status
           - openssl_version
           - platform
           - python_version

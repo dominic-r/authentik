@@ -7,6 +7,7 @@ from sys import version as python_version
 from typing import TypedDict
 
 from cryptography.hazmat.backends.openssl.backend import backend
+from structlog.stdlib import get_logger
 from django.conf import settings
 from django.utils.timezone import now
 from django.views.debug import SafeExceptionReporterFilter
@@ -35,7 +36,8 @@ class RuntimeDict(TypedDict):
     platform: str
     uname: str
     openssl_version: str
-    openssl_fips_enabled: bool | None
+
+    openssl_fips_status: str
     authentik_version: str
 
 
@@ -76,13 +78,41 @@ class SystemInfoSerializer(PassiveSerializer):
 
     def get_runtime(self, request: Request) -> RuntimeDict:
         """Get versions"""
+        license_valid = LicenseKey.get_total().status().is_valid
+
+        # Prefer cryptography's indicator, then fall back to OpenSSL API checks.
+        fips_enabled: bool = False
+        LOGGER = get_logger()
+        try:
+            be_attr = getattr(backend, "_fips_enabled", None)  # type: ignore[attr-defined]
+            if be_attr is not None:
+                fips_enabled = bool(be_attr)
+        except Exception as exc:  # pragma: no cover - best-effort detection
+            LOGGER.debug("FIPS detection using cryptography backend failed", exc_info=exc)
+        try:  # OpenSSL 3: check default properties
+            from cryptography.hazmat.bindings.openssl.binding import Binding
+
+            b = Binsing()
+            lib = b.lib
+            ffi = b.ffi
+            if hasattr(lib, "EVP_default_properties_is_fips_enabled"):
+                fips_enabled = bool(lib.EVP_default_properties_is_fips_enabled(ffi.NULL))
+            elif hasattr(lib, "FIPS_mode"):
+                # OpenSSL 1.x with FIPS module
+                fips_enabled = bool(lib.FIPS_mode())
+        except Exception as exc:  # pragma: no cover - absence of symbols or binding failures
+            LOGGER.debug("FIPS detection using OpenSSL bindings failed", exc_info=exc)
+        fips_status = (
+            "enabled"
+            if fips_enabled and license_valid
+            else ("disabled" if (not fips_enabled) and license_valid else "unverified")
+        )
+
         return {
             "architecture": platform.machine(),
             "authentik_version": authentik_full_version(),
             "environment": get_env(),
-            "openssl_fips_enabled": (
-                backend._fips_enabled if LicenseKey.get_total().status().is_valid else None
-            ),
+            "openssl_fips_status": fips_status,
             "openssl_version": OPENSSL_VERSION,
             "platform": platform.platform(),
             "python_version": python_version,

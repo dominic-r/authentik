@@ -27,15 +27,25 @@ export class FipsStatusCard extends AdminStatusCard<SystemInfo> {
     }
 
     getStatus(value: SystemInfo): Promise<AdminStatus> {
-        return value.runtime.opensslFipsEnabled
-            ? this.setStatus(msg("OK"), {
-                  icon: "fa fa-check-circle pf-m-success",
-                  message: html`${msg("FIPS compliance: passing")}`,
-              })
-            : this.setStatus(msg("Unverified"), {
-                  icon: "fa fa-info-circle pf-m-warning",
-                  message: html`${msg("FIPS compliance: unverified")}`,
-              });
+        const runtime: any = value.runtime ?? {};
+        const status: string | undefined = runtime.opensslFipsStatus;
+
+        if (status === "enabled") {
+            return this.setStatus(msg("OK"), {
+                icon: "fa fa-check-circle pf-m-success",
+                message: html`${msg("FIPS compliance: passing")}`,
+            });
+        }
+        if (status === "disabled") {
+            return this.setStatus(msg("Not enabled"), {
+                icon: "fa fa-times-circle pf-m-danger",
+                message: html`${msg("FIPS compliance: not enabled")}`,
+            });
+        }
+        return this.setStatus(msg("Unverified"), {
+            icon: "fa fa-info-circle pf-m-warning",
+            message: html`${msg("FIPS compliance: unverified")}`,
+        });
     }
 
     renderHeader(): TemplateResult {
