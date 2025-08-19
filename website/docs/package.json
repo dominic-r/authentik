@@ -4,12 +4,14 @@
     "license": "MIT",
     "private": true,
     "scripts": {
-        "build": "run-s build:docusaurus",
+        "build": "run-s generate:glossary build:docusaurus",
         "build:docusaurus": "docusaurus build --out-dir ../build",
         "check-types": "tsc -b .",
         "clear": "docusaurus clear",
         "docusaurus": "docusaurus",
+        "generate:glossary": "node scripts/generate-glossary.mjs",
         "serve": "docusaurus serve --dir ../build",
+        "prestart": "node scripts/generate-glossary.mjs",
         "start": "docusaurus start"
     },
     "dependencies": {
