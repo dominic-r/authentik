@@ -31,13 +31,16 @@ export default function DocCardList(props: Props): ReactNode {
     return <DocCardListForCurrentSidebarCategory {...props} />;
   }
   const filteredItems = filterDocCardListItems(items);
-  console.log("s");
-  debugger;
   return (
-    <section className={clsx('row', className)}>
-      {filteredItems.map((item, index) => (
-        <DocCardListItem key={index} item={item} />
-      ))}
-    </section>
+    <>
+      <h1>HELLO</h1>
+      <section className={clsx('row', className)}>
+        {filteredItems.map((item, index) => (
+          <DocCardListItem key={index} item={item} />
+        ))}
+      </section>
+    </>
   );
 }
+
+export { DocCardList };
