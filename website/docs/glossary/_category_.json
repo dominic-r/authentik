@@ -1,0 +1,12 @@
+{
+  "label": "Glossary",
+  "collapsed": false,
+  "position": 2,
+  "link": {
+    "type": "generated-index",
+    "title": "Glossary",
+    "slug": "/glossary",
+    "description": "Definitions of common terms used throughout the documentation."
+  }
+}
+
