@@ -10,7 +10,6 @@
         "clear": "docusaurus clear",
         "docusaurus": "docusaurus",
         "serve": "docusaurus serve --dir ../build",
-        "prestart": "node scripts/generate-glossary.mjs",
         "start": "docusaurus start"
     },
     "dependencies": {
