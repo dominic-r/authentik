@@ -31,6 +31,46 @@ const logPrefix = "[Build]";
 
 const patternflyPath = resolvePackage("@patternfly/patternfly", import.meta);
 
+const BasePlugins = [
+    copy({
+        assets: [
+            {
+                from: path.join(path.dirname(EntryPoint.StandaloneLoading.in), "startup", "**"),
+                to: path.dirname(EntryPoint.StandaloneLoading.out),
+            },
+
+            {
+                from: path.join(patternflyPath, "patternfly.min.css"),
+                to: ".",
+            },
+            {
+                from: path.join(patternflyPath, "assets", "**"),
+                to: "./assets",
+            },
+            {
+                from: path.resolve(PackageRoot, "src", "common", "styles", "**"),
+                to: ".",
+            },
+            {
+                from: path.resolve(PackageRoot, "src", "assets", "images", "**"),
+                to: "./assets/images",
+            },
+            {
+                from: path.resolve(PackageRoot, "icons", "*"),
+                to: "./assets/icons",
+            },
+        ],
+    }),
+    polyfillNode({
+        polyfills: {
+            path: true,
+        },
+    }),
+    mdxPlugin({
+        root: MonoRepoRoot,
+    }),
+];
+
 /**
  * @type {Readonly<BuildOptions>}
  */
@@ -51,45 +91,7 @@ const BASE_ESBUILD_OPTIONS = {
     loader: {
         ".css": "text",
     },
-    plugins: [
-        copy({
-            assets: [
-                {
-                    from: path.join(path.dirname(EntryPoint.StandaloneLoading.in), "startup", "**"),
-                    to: path.dirname(EntryPoint.StandaloneLoading.out),
-                },
-
-                {
-                    from: path.join(patternflyPath, "patternfly.min.css"),
-                    to: ".",
-                },
-                {
-                    from: path.join(patternflyPath, "assets", "**"),
-                    to: "./assets",
-                },
-                {
-                    from: path.resolve(PackageRoot, "src", "common", "styles", "**"),
-                    to: ".",
-                },
-                {
-                    from: path.resolve(PackageRoot, "src", "assets", "images", "**"),
-                    to: "./assets/images",
-                },
-                {
-                    from: path.resolve(PackageRoot, "icons", "*"),
-                    to: "./assets/icons",
-                },
-            ],
-        }),
-        polyfillNode({
-            polyfills: {
-                path: true,
-            },
-        }),
-        mdxPlugin({
-            root: MonoRepoRoot,
-        }),
-    ],
+    plugins: BasePlugins,
     define: createBundleDefinitions(),
     format: "esm",
     logOverride: {
@@ -168,7 +170,7 @@ async function doWatch() {
 
     const buildOptions = createESBuildOptions({
         entryPoints,
-        plugins: developmentPlugins,
+        plugins: [...BasePlugins, ...developmentPlugins],
     });
 
     const buildContext = await esbuild.context(buildOptions);

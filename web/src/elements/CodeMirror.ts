@@ -4,25 +4,9 @@ import { AKElement } from "#elements/Base";
 
 import { UiThemeEnum } from "@goauthentik/api";
 
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
-import { css as cssLang } from "@codemirror/lang-css";
-import { html as htmlLang } from "@codemirror/lang-html";
-import { javascript } from "@codemirror/lang-javascript";
-import { python } from "@codemirror/lang-python";
-import { xml } from "@codemirror/lang-xml";
-import {
-    defaultHighlightStyle,
-    LanguageSupport,
-    StreamLanguage,
-    syntaxHighlighting,
-} from "@codemirror/language";
-import * as yamlMode from "@codemirror/legacy-modes/mode/yaml";
-import { Compartment, EditorState, Extension } from "@codemirror/state";
-import { oneDark, oneDarkHighlightStyle } from "@codemirror/theme-one-dark";
-import { drawSelection, EditorView, keymap, lineNumbers, ViewUpdate } from "@codemirror/view";
 import YAML from "yaml";
 
-import { css, CSSResult } from "lit";
+import { css, CSSResult, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 
 export enum CodeMirrorMode {
@@ -48,37 +32,59 @@ export class CodeMirrorTextarea<T> extends AKElement {
     @property({ type: Boolean })
     parseValue = true;
 
-    editor?: EditorView;
+    private editorEl?: HTMLElement & {
+        value?: string;
+        language?: string;
+        theme?: string;
+        readonly?: boolean;
+    };
 
     _value?: string;
 
-    theme: Compartment = new Compartment();
-    syntaxHighlighting: Compartment = new Compartment();
-
-    themeLight = EditorView.theme(
-        {
-            "&": {
-                backgroundColor: "var(--pf-global--BackgroundColor--light-300)",
-            },
-        },
-        { dark: false },
-    );
-    themeDark = oneDark;
-    syntaxHighlightingLight = syntaxHighlighting(defaultHighlightStyle);
-    syntaxHighlightingDark = syntaxHighlighting(oneDarkHighlightStyle);
+    private container?: HTMLDivElement;
 
     static styles: CSSResult[] = [
         // Better alignment with patternfly components
         css`
-            .cm-editor {
-                padding-top: calc(
-                    var(--pf-global--spacer--form-element) - var(--pf-global--BorderWidth--sm)
+            .editor-container {
+                position: relative;
+                min-height: 8rem;
+                width: 100%;
+                display: block;
+                overflow: hidden;
+                border: var(--pf-c-form-control--BorderWidth, 1px) solid
+                    var(--pf-c-form-control--BorderColor, var(--pf-global--BorderColor--300));
+                border-radius: var(--pf-c-form-control--BorderRadius, var(--pf-global--BorderRadius--sm));
+                background-color: var(
+                    --pf-c-form-control--BackgroundColor,
+                    var(--pf-global--BackgroundColor--100)
                 );
-                padding-bottom: calc(
-                    var(--pf-global--spacer--form-element) - var(--pf-global--BorderWidth--sm)
+                transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+            }
+            .editor-container:hover {
+                border-color: var(
+                    --pf-c-form-control--hover--BorderColor,
+                    var(--pf-global--BorderColor--200)
                 );
-                padding-right: var(--pf-c-form-control--inset--base);
-                padding-left: var(--pf-c-form-control--inset--base);
+            }
+            .editor-container:focus-within {
+                border-color: var(
+                    --pf-c-form-control--focus--BorderColor,
+                    var(--pf-global--primary-color--100)
+                );
+                box-shadow: var(
+                    --pf-c-form-control--focus--BoxShadow,
+                    0 0 0 1px var(--pf-global--primary-color--100)
+                );
+            }
+            hey-monaco-editor,
+            monaco-editor,
+            .editor-fallback {
+                display: block;
+                width: 100%;
+                height: 14rem;
+                font-family: var(--pf-global--FontFamily--monospace);
+                border-radius: inherit;
             }
         `,
     ];
@@ -104,13 +110,10 @@ export class CodeMirrorTextarea<T> extends AKElement {
                     break;
             }
         }
-        if (this.editor) {
-            this.editor.dispatch({
-                changes: { from: 0, to: this.editor.state.doc.length, insert: textValue as string },
-            });
-        } else {
-            this._value = textValue as string;
+        if (this.editorEl) {
+            this.editorEl.value = textValue as string;
         }
+        this._value = textValue as string;
     }
 
     get value(): T | string {
@@ -132,81 +135,104 @@ export class CodeMirrorTextarea<T> extends AKElement {
     }
 
     private getInnerValue(): string {
-        if (!this.editor) {
-            return "";
+        if (!this.editorEl || this.editorEl.value === undefined) {
+            return this._value ?? "";
         }
-        return this.editor.state.doc.toString();
+        return this.editorEl.value ?? this._value ?? "";
     }
+    async firstUpdated(): Promise<void> {
+        this.container = document.createElement("div");
+        this.container.classList.add("editor-container");
+        this.container.style.width = "100%";
+        this.container.style.minHeight = "8rem";
+        this.shadowRoot?.appendChild(this.container);
 
-    getLanguageExtension(): LanguageSupport | undefined {
-        switch (this.mode.toLowerCase()) {
-            case CodeMirrorMode.XML:
-                return xml();
-            case CodeMirrorMode.JavaScript:
-                return javascript();
-            case CodeMirrorMode.HTML:
-                return htmlLang();
-            case CodeMirrorMode.Python:
-                return python();
-            case CodeMirrorMode.CSS:
-                return cssLang();
-            case CodeMirrorMode.YAML:
-                return new LanguageSupport(StreamLanguage.define(yamlMode.yaml));
+        // Try to dynamically import the Hey Monaco editor. If it fails,
+        // fall back to a simple <textarea> with similar behavior.
+        let tag: string | null = null;
+        try {
+            const spec = "@hey-web-components/monaco-editor";
+            await import(spec);
+        } catch (_e) {
+            // ignore — we try to detect a globally-registered element as well
         }
-        return undefined;
-    }
+        if (customElements.get("hey-monaco-editor")) tag = "hey-monaco-editor";
+        else if (customElements.get("monaco-editor")) tag = "monaco-editor";
 
-    firstUpdated(): void {
-        this.addEventListener(EVENT_THEME_CHANGE, ((ev: CustomEvent<UiThemeEnum>) => {
-            if (ev.detail === UiThemeEnum.Dark) {
-                this.editor?.dispatch({
-                    effects: [
-                        this.theme.reconfigure(this.themeDark),
-                        this.syntaxHighlighting.reconfigure(this.syntaxHighlightingDark),
-                    ],
-                });
-            } else {
-                this.editor?.dispatch({
-                    effects: [
-                        this.theme.reconfigure(this.themeLight),
-                        this.syntaxHighlighting.reconfigure(this.syntaxHighlightingLight),
-                    ],
-                });
-            }
-        }) as EventListener);
+        if (tag) {
+            const editor = document.createElement(tag);
+            editor.style.width = "100%";
+            editor.style.height = "14rem";
 
-        const dark = this.activeTheme === UiThemeEnum.Dark;
+            // @ts-expect-error web component property
+            editor.language = this.getMonacoLanguageId();
+            // @ts-expect-error web component property
+            editor.value = this._value ?? "";
+            // @ts-expect-error web component property
+            editor.readonly = this.readOnly;
+            // @ts-expect-error web component property
+            editor.theme = this.activeTheme === UiThemeEnum.Dark ? "vs-dark" : "vs";
 
-        const extensions = [
-            history(),
-            keymap.of([...defaultKeymap, ...historyKeymap]),
-            this.getLanguageExtension(),
-            lineNumbers(),
-            drawSelection(),
-            EditorView.lineWrapping,
-            EditorView.updateListener.of((v: ViewUpdate) => {
-                if (!v.docChanged) {
-                    return;
+            const onChange = (e: Event) => {
+                const next = (e.target as any)?.value ?? (e as any)?.detail?.value;
+                if (typeof next === "string") this._value = next;
+                this.dispatchEvent(new CustomEvent("change", { detail: e }));
+            };
+            editor.addEventListener("input", onChange);
+            editor.addEventListener("change", onChange);
+            editor.addEventListener("value-changed", onChange as EventListener);
+
+            this.container.appendChild(editor);
+            this.editorEl = editor as unknown as CodeMirrorTextarea<T>["editorEl"];
+
+            this.addEventListener(EVENT_THEME_CHANGE, ((ev: CustomEvent<UiThemeEnum>) => {
+                const theme = ev.detail === UiThemeEnum.Dark ? "vs-dark" : "vs";
+                if (this.editorEl) {
+                    this.editorEl.theme = theme;
                 }
-                this.dispatchEvent(
-                    new CustomEvent("change", {
-                        detail: v,
-                    }),
-                );
-            }),
-            EditorState.readOnly.of(this.readOnly),
-            EditorState.tabSize.of(2),
-            this.syntaxHighlighting.of(
-                dark ? this.syntaxHighlightingDark : this.syntaxHighlightingLight,
-            ),
-            this.theme.of(dark ? this.themeDark : this.themeLight),
-        ];
-        this.editor = new EditorView({
-            extensions: extensions.filter((p) => p) as Extension[],
-            root: this.shadowRoot || document,
-            doc: this._value,
+            }) as EventListener);
+            return;
+        }
+
+        // Fallback: plain textarea
+        const ta = document.createElement("textarea");
+        ta.className = "editor-fallback pf-c-form-control";
+        ta.value = this._value ?? "";
+        ta.readOnly = this.readOnly;
+        ta.addEventListener("input", (e) => {
+            this._value = ta.value;
+            this.dispatchEvent(new CustomEvent("change", { detail: e }));
         });
-        this.shadowRoot?.appendChild(this.editor.dom);
+        this.container.appendChild(ta);
+        this.editorEl = ta as unknown as CodeMirrorTextarea<T>["editorEl"];
+    }
+
+    private getMonacoLanguageId(): string {
+        switch (this.mode.toLowerCase()) {
+            case CodeMirrorMode.JavaScript:
+                return "javascript";
+            case CodeMirrorMode.HTML:
+                return "html";
+            case CodeMirrorMode.CSS:
+                return "css";
+            case CodeMirrorMode.YAML:
+                return "yaml";
+            case CodeMirrorMode.XML:
+                return "xml";
+            case CodeMirrorMode.Python:
+                return "python";
+            default:
+                return "plaintext";
+        }
+    }
+
+    disconnectedCallback(): void {
+        super.disconnectedCallback();
+        if (this.container) {
+            this.container.remove();
+            this.container = undefined;
+        }
+        this.editorEl = undefined;
     }
 }
 
