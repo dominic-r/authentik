@@ -243,7 +243,8 @@ export abstract class SearchSelectBase<T>
 
             return;
         }
-        const selected = this.objects?.find((obj) => this.value(obj) === value) || null;
+        const selected =
+            this.objects?.find((obj) => `${this.value(obj) ?? ""}` === value) || null;
 
         if (!selected) {
             console.warn(`ak-search-select: No corresponding object found for value (${value}`);
