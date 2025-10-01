@@ -1,6 +1,7 @@
 """authentik proxy models"""
 
 import string
+import uuid
 from collections.abc import Iterable
 from random import SystemRandom
 from urllib.parse import urljoin
@@ -29,7 +30,8 @@ OUTPOST_CALLBACK_SIGNATURE = "X-authentik-auth-callback"
 class OutpostProxySession(models.Model):
     """Session storage for proxyv2 outposts using PostgreSQL"""
 
-    session_key = models.CharField(max_length=255, primary_key=True)
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session_key = models.CharField(max_length=255, unique=True, db_index=True)
 
     # Session data columns
     user_id = models.UUIDField(null=True, blank=True, db_index=True)
