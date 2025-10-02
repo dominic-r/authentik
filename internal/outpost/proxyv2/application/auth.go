@@ -7,11 +7,12 @@ import (
 	"time"
 
 	"goauthentik.io/internal/outpost/proxyv2/constants"
+	"goauthentik.io/internal/outpost/proxyv2/types"
 )
 
 // checkAuth Get claims which are currently in session
 // Returns an error if the session can't be loaded or the claims can't be parsed/type-cast
-func (a *Application) checkAuth(rw http.ResponseWriter, r *http.Request) (*Claims, error) {
+func (a *Application) checkAuth(rw http.ResponseWriter, r *http.Request) (*types.Claims, error) {
 	c := a.getClaimsFromSession(r)
 	if c != nil {
 		return c, nil
@@ -49,7 +50,7 @@ func (a *Application) checkAuth(rw http.ResponseWriter, r *http.Request) (*Claim
 	return nil, fmt.Errorf("failed to get claims from session")
 }
 
-func (a *Application) getClaimsFromSession(r *http.Request) *Claims {
+func (a *Application) getClaimsFromSession(r *http.Request) *types.Claims {
 	s, err := a.sessions.Get(r, a.SessionName())
 	if err != nil {
 		// err == user has no session/session is not valid, reject
@@ -63,12 +64,12 @@ func (a *Application) getClaimsFromSession(r *http.Request) *Claims {
 	// todo(dominic): figure out which it is and get rid of this
 
 	// Try direct cast first (when claims are stored as Claims struct)
-	if c, ok := claims.(Claims); ok {
+	if c, ok := claims.(types.Claims); ok {
 		return &c
 	}
 
 	// Try pointer cast (when claims are stored as *Claims)
-	if c, ok := claims.(*Claims); ok {
+	if c, ok := claims.(*types.Claims); ok {
 		return c
 	}
 
@@ -80,7 +81,7 @@ func (a *Application) getClaimsFromSession(r *http.Request) *Claims {
 			return nil
 		}
 
-		var c Claims
+		var c types.Claims
 		if err := json.Unmarshal(jsonData, &c); err != nil {
 			return nil
 		}
@@ -91,7 +92,7 @@ func (a *Application) getClaimsFromSession(r *http.Request) *Claims {
 	return nil
 }
 
-func (a *Application) getClaimsFromCache(r *http.Request) *Claims {
+func (a *Application) getClaimsFromCache(r *http.Request) *types.Claims {
 	key := r.Header.Get(constants.HeaderAuthorization)
 	item := a.authHeaderCache.Get(key)
 	if item != nil && !item.IsExpired() {
@@ -101,7 +102,7 @@ func (a *Application) getClaimsFromCache(r *http.Request) *Claims {
 	return nil
 }
 
-func (a *Application) saveAndCacheClaims(rw http.ResponseWriter, r *http.Request, claims Claims) (*Claims, error) {
+func (a *Application) saveAndCacheClaims(rw http.ResponseWriter, r *http.Request, claims types.Claims) (*types.Claims, error) {
 	s, _ := a.sessions.Get(r, a.SessionName())
 
 	s.Values[constants.SessionClaims] = claims

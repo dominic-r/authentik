@@ -85,7 +85,7 @@ func (a *Application) getAllCodecs() []securecookie.Codec {
 	return cs
 }
 
-func (a *Application) Logout(ctx context.Context, filter func(c Claims) bool) error {
+func (a *Application) Logout(ctx context.Context, filter func(c types.Claims) bool) error {
 	if _, ok := a.sessions.(*filesystemstore.Store); ok {
 		files, err := os.ReadDir(os.TempDir())
 		if err != nil {
@@ -114,7 +114,7 @@ func (a *Application) Logout(ctx context.Context, filter func(c Claims) bool) er
 			if !ok || rc == nil {
 				continue
 			}
-			claims := s.Values[constants.SessionClaims].(Claims)
+			claims := s.Values[constants.SessionClaims].(types.Claims)
 			if filter(claims) {
 				a.log.WithField("path", fullPath).Trace("deleting session")
 				err := os.Remove(fullPath)
@@ -127,7 +127,7 @@ func (a *Application) Logout(ctx context.Context, filter func(c Claims) bool) er
 	}
 	if ps, ok := a.sessions.(*postgresstore.PostgresStore); ok {
 		err := ps.LogoutSessions(ctx, func(c types.Claims) bool {
-			return filter(Claims(c))
+			return filter(types.Claims(c))
 		})
 		if err != nil {
 			a.log.WithError(err).Warning("failed to logout sessions from PostgreSQL")
