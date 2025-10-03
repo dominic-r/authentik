@@ -10,31 +10,39 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
+	"goauthentik.io/internal/config"
 	"goauthentik.io/internal/outpost/proxyv2/constants"
 	"goauthentik.io/internal/outpost/proxyv2/types"
 )
 
-func setupTestDB() (*gorm.DB, error) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		return nil, err
+func setupTestDB(t *testing.T) *gorm.DB {
+	cfg := config.Get().PostgreSQL
+	cfg.Name = "test_" + cfg.Name
+
+	// Build connection string
+	dsn, err := buildDSN(cfg)
+	assert.NoError(t, err)
+
+	// Configure GORM
+	gormConfig := &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
 	}
+
+	db, err := gorm.Open(postgres.Open(dsn), gormConfig)
+	assert.NoError(t, err)
 
 	// Auto-migrate the schema
 	err = db.AutoMigrate(&ProxySession{})
-	if err != nil {
-		return nil, err
-	}
-
-	return db, nil
+	assert.NoError(t, err)
+	return db
 }
 
 func TestPostgresStore_New(t *testing.T) {
-	db, err := setupTestDB()
-	require.NoError(t, err)
+	db := setupTestDB(t)
 
 	store := &PostgresStore{
 		db: db,
@@ -54,8 +62,7 @@ func TestPostgresStore_New(t *testing.T) {
 }
 
 func TestPostgresStore_Save(t *testing.T) {
-	db, err := setupTestDB()
-	require.NoError(t, err)
+	db := setupTestDB(t)
 
 	store := &PostgresStore{
 		db: db,
@@ -99,8 +106,7 @@ func TestPostgresStore_Save(t *testing.T) {
 }
 
 func TestPostgresStore_Load(t *testing.T) {
-	db, err := setupTestDB()
-	require.NoError(t, err)
+	db := setupTestDB(t)
 
 	store := &PostgresStore{
 		db: db,
@@ -125,7 +131,7 @@ func TestPostgresStore_Load(t *testing.T) {
 		ExpiresAt:    time.Now().Add(time.Hour),
 		ExtraClaims:  `{"custom_claim":"custom_value"}`,
 	}
-	err = db.Create(&proxySession).Error
+	err := db.Create(&proxySession).Error
 	require.NoError(t, err)
 
 	// Load the session
@@ -145,8 +151,7 @@ func TestPostgresStore_Load(t *testing.T) {
 }
 
 func TestPostgresStore_Delete(t *testing.T) {
-	db, err := setupTestDB()
-	require.NoError(t, err)
+	db := setupTestDB(t)
 
 	store := &PostgresStore{
 		db: db,
@@ -163,7 +168,7 @@ func TestPostgresStore_Delete(t *testing.T) {
 		SessionKey: sessionKey,
 		ExpiresAt:  time.Now().Add(time.Hour),
 	}
-	err = db.Create(&proxySession).Error
+	err := db.Create(&proxySession).Error
 	require.NoError(t, err)
 
 	// Delete the session
@@ -179,8 +184,7 @@ func TestPostgresStore_Delete(t *testing.T) {
 }
 
 func TestPostgresStore_CleanupExpired(t *testing.T) {
-	db, err := setupTestDB()
-	require.NoError(t, err)
+	db := setupTestDB(t)
 
 	store := &PostgresStore{
 		db: db,
@@ -201,7 +205,7 @@ func TestPostgresStore_CleanupExpired(t *testing.T) {
 		ExpiresAt:  time.Now().Add(time.Hour), // Expires in 1 hour
 	}
 
-	err = db.Create(&expiredSession).Error
+	err := db.Create(&expiredSession).Error
 	require.NoError(t, err)
 	err = db.Create(&validSession).Error
 	require.NoError(t, err)
@@ -222,8 +226,7 @@ func TestPostgresStore_CleanupExpired(t *testing.T) {
 }
 
 func TestPostgresStore_LogoutSessions_Integration(t *testing.T) {
-	db, err := setupTestDB()
-	require.NoError(t, err)
+	db := setupTestDB(t)
 
 	store := &PostgresStore{
 		db: db,
@@ -237,7 +240,7 @@ func TestPostgresStore_LogoutSessions_Integration(t *testing.T) {
 	// Create multiple sessions for different users
 	user1 := uuid.New()
 	user2 := uuid.New()
-	
+
 	sessions := []ProxySession{
 		{
 			SessionKey:   "session_user1_1",
@@ -248,7 +251,7 @@ func TestPostgresStore_LogoutSessions_Integration(t *testing.T) {
 			ExtraClaims:  `{"groups":["admin"],"role":"admin"}`,
 		},
 		{
-			SessionKey:   "session_user1_2", 
+			SessionKey:   "session_user1_2",
 			UserID:       &user1,
 			UserEmail:    "user1@example.com",
 			UserUsername: "user1",
@@ -257,31 +260,31 @@ func TestPostgresStore_LogoutSessions_Integration(t *testing.T) {
 		},
 		{
 			SessionKey:   "session_user2_1",
-			UserID:       &user2, 
+			UserID:       &user2,
 			UserEmail:    "user2@example.com",
 			UserUsername: "user2",
 			ExpiresAt:    time.Now().Add(time.Hour),
 			ExtraClaims:  `{"groups":["user"],"role":"user"}`,
 		},
 	}
-	
+
 	for _, session := range sessions {
-		err = db.Create(&session).Error
+		err := db.Create(&session).Error
 		require.NoError(t, err)
 	}
-	
+
 	// Test filtering by user ID
 	ctx := context.Background()
-	err = store.LogoutSessions(ctx, func(c types.Claims) bool {
+	err := store.LogoutSessions(ctx, func(c types.Claims) bool {
 		return c.Sub == user1.String()
 	})
 	assert.NoError(t, err)
-	
+
 	// Verify only user2 session remains
 	var count int64
 	db.Model(&ProxySession{}).Count(&count)
 	assert.Equal(t, int64(1), count)
-	
+
 	var remaining ProxySession
 	err = db.First(&remaining).Error
 	assert.NoError(t, err)
@@ -289,8 +292,7 @@ func TestPostgresStore_LogoutSessions_Integration(t *testing.T) {
 }
 
 func TestPostgresStore_LogoutSessions_ByEmail(t *testing.T) {
-	db, err := setupTestDB()
-	require.NoError(t, err)
+	db := setupTestDB(t)
 
 	store := &PostgresStore{
 		db: db,
@@ -310,7 +312,7 @@ func TestPostgresStore_LogoutSessions_ByEmail(t *testing.T) {
 		},
 		{
 			SessionKey: "session_admin_2",
-			UserEmail:  "admin@example.com", 
+			UserEmail:  "admin@example.com",
 			ExpiresAt:  time.Now().Add(time.Hour),
 		},
 		{
@@ -319,24 +321,24 @@ func TestPostgresStore_LogoutSessions_ByEmail(t *testing.T) {
 			ExpiresAt:  time.Now().Add(time.Hour),
 		},
 	}
-	
+
 	for _, session := range sessions {
-		err = db.Create(&session).Error
+		err := db.Create(&session).Error
 		require.NoError(t, err)
 	}
-	
+
 	// Logout all admin sessions
 	ctx := context.Background()
-	err = store.LogoutSessions(ctx, func(c types.Claims) bool {
+	err := store.LogoutSessions(ctx, func(c types.Claims) bool {
 		return c.Email == "admin@example.com"
 	})
 	assert.NoError(t, err)
-	
+
 	// Verify only user session remains
 	var count int64
 	db.Model(&ProxySession{}).Count(&count)
 	assert.Equal(t, int64(1), count)
-	
+
 	var remaining ProxySession
 	err = db.First(&remaining).Error
 	assert.NoError(t, err)
@@ -344,8 +346,7 @@ func TestPostgresStore_LogoutSessions_ByEmail(t *testing.T) {
 }
 
 func TestPostgresStore_LogoutSessions_WithGroups(t *testing.T) {
-	db, err := setupTestDB()
-	require.NoError(t, err)
+	db := setupTestDB(t)
 
 	store := &PostgresStore{
 		db: db,
@@ -359,33 +360,33 @@ func TestPostgresStore_LogoutSessions_WithGroups(t *testing.T) {
 	// Create sessions with different group memberships
 	sessions := []ProxySession{
 		{
-			SessionKey: "session_admin_user",
-			UserEmail:  "admin@example.com",
-			ExpiresAt:  time.Now().Add(time.Hour),
+			SessionKey:  "session_admin_user",
+			UserEmail:   "admin@example.com",
+			ExpiresAt:   time.Now().Add(time.Hour),
 			ExtraClaims: `{"groups":["admin","user"]}`,
 		},
 		{
-			SessionKey: "session_regular_user",
-			UserEmail:  "user@example.com", 
-			ExpiresAt:  time.Now().Add(time.Hour),
+			SessionKey:  "session_regular_user",
+			UserEmail:   "user@example.com",
+			ExpiresAt:   time.Now().Add(time.Hour),
 			ExtraClaims: `{"groups":["user"]}`,
 		},
 		{
-			SessionKey: "session_guest",
-			UserEmail:  "guest@example.com",
-			ExpiresAt:  time.Now().Add(time.Hour),
+			SessionKey:  "session_guest",
+			UserEmail:   "guest@example.com",
+			ExpiresAt:   time.Now().Add(time.Hour),
 			ExtraClaims: `{"groups":["guest"]}`,
 		},
 	}
-	
+
 	for _, session := range sessions {
-		err = db.Create(&session).Error
+		err := db.Create(&session).Error
 		require.NoError(t, err)
 	}
-	
+
 	// Logout all sessions that have "admin" group
 	ctx := context.Background()
-	err = store.LogoutSessions(ctx, func(c types.Claims) bool {
+	err := store.LogoutSessions(ctx, func(c types.Claims) bool {
 		for _, group := range c.Groups {
 			if group == "admin" {
 				return true
@@ -394,25 +395,24 @@ func TestPostgresStore_LogoutSessions_WithGroups(t *testing.T) {
 		return false
 	})
 	assert.NoError(t, err)
-	
+
 	// Verify admin user session was removed
 	var count int64
 	db.Model(&ProxySession{}).Count(&count)
 	assert.Equal(t, int64(2), count)
-	
+
 	// Verify remaining sessions don't have admin group
 	var remainingSessions []ProxySession
 	err = db.Find(&remainingSessions).Error
 	assert.NoError(t, err)
-	
+
 	for _, session := range remainingSessions {
 		assert.NotEqual(t, "admin@example.com", session.UserEmail)
 	}
 }
 
 func TestPostgresStore_LastAccessed_Update(t *testing.T) {
-	db, err := setupTestDB()
-	require.NoError(t, err)
+	db := setupTestDB(t)
 
 	store := &PostgresStore{
 		db: db,
@@ -426,14 +426,14 @@ func TestPostgresStore_LastAccessed_Update(t *testing.T) {
 	// Create a session
 	sessionKey := "test_session_123"
 	originalTime := time.Now().Add(-time.Hour)
-	
+
 	proxySession := ProxySession{
 		SessionKey:   sessionKey,
 		UserEmail:    "test@example.com",
 		ExpiresAt:    time.Now().Add(time.Hour),
 		LastAccessed: originalTime,
 	}
-	err = db.Create(&proxySession).Error
+	err := db.Create(&proxySession).Error
 	require.NoError(t, err)
 
 	// Load the session (which should update last_accessed)
@@ -446,7 +446,7 @@ func TestPostgresStore_LastAccessed_Update(t *testing.T) {
 	var updated ProxySession
 	err = db.First(&updated, "session_key = ?", sessionKey).Error
 	require.NoError(t, err)
-	
+
 	// The last_accessed time should be more recent than the original time
 	assert.True(t, updated.LastAccessed.After(originalTime))
 }
