@@ -95,7 +95,31 @@ func NewAPIController(akURL url.URL, token string) *APIController {
 	if len(outposts.Results) < 1 {
 		log.Panic("No outposts found with given token, ensure the given token corresponds to an authenitk Outpost")
 	}
-	outpost := outposts.Results[0]
+
+	// Filter out the embedded outpost to prevent standalone outposts from accidentally selecting it
+	// when the token has visibility to multiple outposts. The embedded outpost should only be
+	// selected when explicitly running as the embedded outpost (using secret key, not token).
+	var outpost api.Outpost
+	embeddedOutpostValue := "goauthentik.io/outposts/embedded"
+	for _, o := range outposts.Results {
+		managed := o.Managed.Get()
+		if managed != nil && *managed == embeddedOutpostValue {
+			// Skip embedded outpost - it should not be selected by standalone outposts
+			continue
+		}
+		outpost = o
+		break
+	}
+
+	// If we only found the embedded outpost (no standalone outposts available),
+	// use it anyway (this happens when running as embedded outpost)
+	if outpost.Pk == "" && len(outposts.Results) > 0 {
+		outpost = outposts.Results[0]
+	}
+
+	if outpost.Pk == "" {
+		log.Panic("No valid outpost found with given token")
+	}
 
 	log.WithField("name", outpost.Name).Debug("Fetched outpost configuration")
 
